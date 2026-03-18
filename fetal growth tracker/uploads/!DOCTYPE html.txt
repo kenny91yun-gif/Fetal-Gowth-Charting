@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Serial Fetal Growth Charting</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans p-6">
+
+    <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <div class="lg:col-span-1 space-y-6">
+            
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h1 class="text-2xl font-bold text-blue-700 mb-2">Fetal Growth Tracker</h1>
+                <p class="text-sm text-gray-500">Enter multiple ultrasound measurements to plot serial growth against standard percentiles.</p>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h2 class="text-lg font-semibold mb-4">Add Measurement</h2>
+                <form id="dataForm" class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Weeks</label>
+                            <input type="number" id="weeks" min="14" max="42" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. 24">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Days</label>
+                            <input type="number" id="days" min="0" max="6" value="0" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Est. Fetal Weight (grams)</label>
+                        <input type="number" id="weight" min="50" max="6000" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. 650">
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-2 px-4 rounded hover:bg-blue-700 transition">
+                        Add Data Point
+                    </button>
+                </form>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h2 class="text-lg font-semibold mb-4">Patient Data</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left text-gray-500">
+                        <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2">Gest. Age</th>
+                                <th class="px-4 py-2">EFW (g)</th>
+                                <th class="px-4 py-2">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dataTableBody">
+                            </tbody>
+                    </table>
+                    <p id="emptyState" class="text-center text-gray-400 mt-4 italic">No data added yet.</p>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="lg:col-span-2 bg-white p-6 rounded-lg shadow-sm border border-gray-200 flex flex-col">
+            <h2 class="text-lg font-semibold mb-4">Serial Growth Chart</h2>
+            <div class="relative flex-grow h-96 lg:h-auto min-h-[500px]">
+                <canvas id="growthChart"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // 1. Mock Reference Data (WHO/Hadlock approximate percentiles for template)
+        // For clinical use, replace this with exact polynomial formulas or full datasets.
+        const referenceData = [
+            { week: 14, p10: 85, p50: 105, p90: 130 },
+            { week: 16, p10: 120, p50: 150, p90: 180 },
+            { week: 18, p10: 180, p50: 220, p90: 270 },
+            { week: 20, p10: 260, p50: 310, p90: 380 },
+            { week: 22, p10: 380, p50: 450, p90: 540 },
+            { week: 24, p10: 520, p50: 620, p90: 740 },
+            { week: 26, p10: 700, p50: 830, p90: 980 },
+            { week: 28, p10: 920, p50: 1080, p90: 1280 },
+            { week: 30, p10: 1180, p50: 1380, p90: 1620 },
+            { week: 32, p10: 1480, p50: 1720, p90: 2020 },
+            { week: 34, p10: 1820, p50: 2120, p90: 2480 },
+            { week: 36, p10: 2180, p50: 2550, p90: 2980 },
+            { week: 38, p10: 2550, p50: 2980, p90: 3480 },
+            { week: 40, p10: 2880, p50: 3380, p90: 3950 },
+            { week: 42, p10: 3150, p50: 3680, p90: 4300 }
+        ];
+
+        // Format reference data for Chart.js
+        const dataset10 = referenceData.map(d => ({ x: d.week, y: d.p10 }));
+        const dataset50 = referenceData.map(d => ({ x: d.week, y: d.p50 }));
+        const dataset90 = referenceData.map(d => ({ x: d.week, y: d.p90 }));
+
+        // 2. Patient Data Storage
+        let patientData = [];
+
+        // 3. Initialize Chart.js
+        const ctx = document.getElementById('growthChart').getContext('2d');
+        const growthChart = new Chart(ctx, {
+            type: 'scatter', // Scatter allows precise x (decimal weeks) plotting
+            data: {
+                datasets: [
+                    {
+                        label: '90th Percentile',
+                        data: dataset90,
+                        borderColor: '#9ca3af', // Gray
+                        borderDash: [5, 5],
+                        showLine: true,
+                        pointRadius: 0,
+                        fill: false,
+                        tension: 0.4
+                    },
+                    {
+                        label: '50th Percentile',
+                        data: dataset50,
+                        borderColor: '#10b981', // Green
+                        showLine: true,
+                        pointRadius: 0,
+                        fill: false,
+                        tension: 0.4
+                    },
+                    {
+                        label: '10th Percentile',
+                        data: dataset10,
+                        borderColor: '#9ca3af', // Gray
+                        borderDash: [5, 5],
+                        showLine: true,
+                        pointRadius: 0,
+                        fill: false,
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Patient Data',
+                        data: [],
+                        borderColor: '#2563eb', // Blue
+                        backgroundColor: '#2563eb',
+                        showLine: true,
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
+                        fill: false,
+                        tension: 0 // Straight lines between serial points
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        type: 'linear',
+                        title: { display: true, text: 'Gestational Age (Weeks)', font: { size: 14 } },
+                        min: 14,
+                        max: 42,
+                        ticks: { stepSize: 2 }
+                    },
+                    y: {
+                        title: { display: true, text: 'Estimated Fetal Weight (grams)', font: { size: 14 } },
+                        min: 0,
+                        max: 4500
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) { label += ': '; }
+                                if (context.parsed.y !== null) {
+                                    if(context.dataset.label === 'Patient Data') {
+                                        // Retrieve exact weeks + days text if available
+                                        const pt = patientData.find(p => p.decimalAge === context.parsed.x);
+                                        const ageText = pt ? `${pt.weeks}w ${pt.days}d` : `${context.parsed.x.toFixed(1)}w`;
+                                        label += `${context.parsed.y}g at ${ageText}`;
+                                    } else {
+                                        label += `${context.parsed.y}g`;
+                                    }
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // 4. Handle Form Submission
+        document.getElementById('dataForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const weeks = parseInt(document.getElementById('weeks').value);
+            const days = parseInt(document.getElementById('days').value);
+            const weight = parseInt(document.getElementById('weight').value);
+            
+            // Calculate exact decimal age (e.g. 24 weeks 3 days = 24.42)
+            const decimalAge = +(weeks + (days / 7)).toFixed(2);
+
+            // Add to array
+            patientData.push({
+                id: Date.now(), // unique ID for deletion
+                weeks: weeks,
+                days: days,
+                decimalAge: decimalAge,
+                weight: weight
+            });
+
+            // Sort array by gestational age so the line connects properly
+            patientData.sort((a, b) => a.decimalAge - b.decimalAge);
+
+            // Update UI
+            updateTable();
+            updateChart();
+            
+            // Reset form
+            this.reset();
+            document.getElementById('days').value = 0;
+        });
+
+        // 5. Update Table
+        function updateTable() {
+            const tbody = document.getElementById('dataTableBody');
+            const emptyState = document.getElementById('emptyState');
+            
+            tbody.innerHTML = '';
+            
+            if (patientData.length === 0) {
+                emptyState.style.display = 'block';
+                return;
+            }
+            
+            emptyState.style.display = 'none';
+
+            patientData.forEach(data => {
+                const tr = document.createElement('tr');
+                tr.className = "bg-white border-b";
+                tr.innerHTML = `
+                    <td class="px-4 py-3 font-medium text-gray-900">${data.weeks}w ${data.days}d</td>
+                    <td class="px-4 py-3">${data.weight} g</td>
+                    <td class="px-4 py-3">
+                        <button onclick="removeData(${data.id})" class="text-red-600 hover:text-red-800 font-medium">Remove</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 6. Update Chart
+        function updateChart() {
+            // Map patient data to Chart.js {x, y} format
+            const chartData = patientData.map(d => ({
+                x: d.decimalAge,
+                y: d.weight
+            }));
+
+            // The Patient Data is index 3 in our datasets array
+            growthChart.data.datasets[3].data = chartData;
+            growthChart.update();
+        }
+
+        // 7. Remove Data Function
+        window.removeData = function(id) {
+            patientData = patientData.filter(d => d.id !== id);
+            updateTable();
+            updateChart();
+        }
+    </script>
+</body>
+</html>

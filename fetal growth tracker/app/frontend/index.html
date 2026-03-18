@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WHO Fetal Growth Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        .tab-btn { transition: all 0.2s ease; }
+        .tab-btn.active { background-color: #2563eb; color: white; }
+        .tab-btn:not(.active) { background-color: #f3f4f6; color: #374151; }
+        .tab-btn:not(.active):hover { background-color: #e5e7eb; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans p-4 md:p-6">
+
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- LEFT PANEL -->
+        <div class="lg:col-span-1 space-y-5">
+            
+            <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+                <h1 class="text-2xl font-bold text-blue-700 mb-1">WHO Fetal Growth Tracker</h1>
+                <p class="text-sm text-gray-500">Enter ultrasound measurements to plot serial growth against WHO standard percentiles.</p>
+            </div>
+
+            <!-- ADD MEASUREMENT FORM -->
+            <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+                <h2 class="text-lg font-semibold mb-3">Add Measurement</h2>
+                <form id="dataForm" class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Fetal Sex (for EFW chart)</label>
+                        <div class="flex gap-4">
+                            <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                                <input type="radio" name="fetalSex" value="female" checked onchange="changeSex('female')" class="text-pink-500 focus:ring-pink-400">
+                                <span class="text-sm text-pink-600 font-medium">♀ Female</span>
+                            </label>
+                            <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                                <input type="radio" name="fetalSex" value="male" onchange="changeSex('male')" class="text-blue-500 focus:ring-blue-400">
+                                <span class="text-sm text-blue-600 font-medium">♂ Male</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Weeks</label>
+                            <input type="number" id="weeks" min="14" max="40" required class="block w-full rounded-md border-gray-300 shadow-sm border p-2 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. 24">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Days</label>
+                            <input type="number" id="days" min="0" max="6" value="0" required class="block w-full rounded-md border-gray-300 shadow-sm border p-2 text-sm focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                    </div>
+
+                    <div class="border-t pt-3 mt-2">
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Biometry (mm)</p>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Head Circ. (HC)</label>
+                                <input type="number" id="hc" min="0" max="500" step="0.1" class="block w-full rounded-md border-gray-300 shadow-sm border p-2 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="mm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Biparietal D. (BPD)</label>
+                                <input type="number" id="bpd" min="0" max="200" step="0.1" class="block w-full rounded-md border-gray-300 shadow-sm border p-2 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="mm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Abdom. Circ. (AC)</label>
+                                <input type="number" id="ac" min="0" max="500" step="0.1" class="block w-full rounded-md border-gray-300 shadow-sm border p-2 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="mm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Femur Length (FL)</label>
+                                <input type="number" id="fl" min="0" max="200" step="0.1" class="block w-full rounded-md border-gray-300 shadow-sm border p-2 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="mm">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border-t pt-3 mt-2">
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Est. Fetal Weight (g)</label>
+                        <input type="number" id="weight" min="50" max="6000" class="block w-full rounded-md border-gray-300 shadow-sm border p-2 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. 650">
+                    </div>
+
+                    <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-2 px-4 rounded hover:bg-blue-700 transition text-sm">
+                        Add Data Point
+                    </button>
+                </form>
+            </div>
+
+            <!-- PATIENT DATA TABLE -->
+            <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+                <h2 class="text-lg font-semibold mb-3">Patient Data</h2>
+                <div class="overflow-x-auto max-h-64 overflow-y-auto">
+                    <table class="w-full text-xs text-left text-gray-500">
+                        <thead class="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="px-2 py-2">GA</th>
+                                <th class="px-2 py-2">HC</th>
+                                <th class="px-2 py-2">BPD</th>
+                                <th class="px-2 py-2">AC</th>
+                                <th class="px-2 py-2">FL</th>
+                                <th class="px-2 py-2">EFW</th>
+                                <th class="px-2 py-2"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="dataTableBody"></tbody>
+                    </table>
+                    <p id="emptyState" class="text-center text-gray-400 mt-4 italic text-sm">No data added yet.</p>
+                </div>
+            </div>
+
+            <!-- PDF REPORT BUTTON -->
+            <button id="downloadPdfBtn" onclick="generatePDF()" class="w-full bg-emerald-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-emerald-700 transition text-sm flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Download PDF Report
+            </button>
+
+        </div>
+
+        <!-- RIGHT PANEL - CHART -->
+        <div class="lg:col-span-2 bg-white p-5 rounded-lg shadow-sm border border-gray-200 flex flex-col">
+            <h2 class="text-lg font-semibold mb-3">Serial Growth Chart</h2>
+            
+            <!-- MEASUREMENT TABS -->
+            <div class="flex flex-wrap gap-2 mb-4" id="tabContainer">
+                <button class="tab-btn active px-3 py-1.5 rounded-full text-xs font-semibold" data-metric="efw" onclick="switchMetric('efw')">Est. Fetal Weight</button>
+                <button class="tab-btn px-3 py-1.5 rounded-full text-xs font-semibold" data-metric="hc" onclick="switchMetric('hc')">Head Circ.</button>
+                <button class="tab-btn px-3 py-1.5 rounded-full text-xs font-semibold" data-metric="bpd" onclick="switchMetric('bpd')">Biparietal D.</button>
+                <button class="tab-btn px-3 py-1.5 rounded-full text-xs font-semibold" data-metric="ac" onclick="switchMetric('ac')">Abdom. Circ.</button>
+                <button class="tab-btn px-3 py-1.5 rounded-full text-xs font-semibold" data-metric="fl" onclick="switchMetric('fl')">Femur Length</button>
+            </div>
+
+            <div class="relative flex-grow h-96 lg:h-auto min-h-[500px]">
+                <canvas id="growthChart"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // ============================================================
+        // REFERENCE DATA: Approximate WHO/Hadlock percentiles
+        // For clinical use, replace with exact polynomial formulas.
+        // ============================================================
+
+        const referenceDataSets = {
+            efw: {
+                label: 'Estimated Fetal Weight (g)',
+                unit: 'g',
+                female: [
+                    { week: 14, p3: 73, p10: 77, p50: 89, p90: 102, p97: 107 },
+                    { week: 15, p3: 92, p10: 97, p50: 113, p90: 129, p97: 135 },
+                    { week: 16, p3: 116, p10: 122, p50: 141, p90: 162, p97: 170 },
+                    { week: 17, p3: 145, p10: 152, p50: 176, p90: 202, p97: 211 },
+                    { week: 18, p3: 180, p10: 188, p50: 217, p90: 248, p97: 261 },
+                    { week: 19, p3: 221, p10: 231, p50: 266, p90: 304, p97: 319 },
+                    { week: 20, p3: 269, p10: 281, p50: 322, p90: 369, p97: 387 },
+                    { week: 21, p3: 324, p10: 339, p50: 388, p90: 444, p97: 466 },
+                    { week: 22, p3: 388, p10: 405, p50: 464, p90: 530, p97: 557 },
+                    { week: 23, p3: 461, p10: 481, p50: 551, p90: 629, p97: 660 },
+                    { week: 24, p3: 542, p10: 567, p50: 649, p90: 740, p97: 776 },
+                    { week: 25, p3: 634, p10: 663, p50: 758, p90: 865, p97: 907 },
+                    { week: 26, p3: 735, p10: 769, p50: 880, p90: 1003, p97: 1051 },
+                    { week: 27, p3: 846, p10: 886, p50: 1014, p90: 1156, p97: 1210 },
+                    { week: 28, p3: 967, p10: 1013, p50: 1160, p90: 1323, p97: 1383 },
+                    { week: 29, p3: 1096, p10: 1150, p50: 1319, p90: 1505, p97: 1570 },
+                    { week: 30, p3: 1234, p10: 1296, p50: 1489, p90: 1699, p97: 1770 },
+                    { week: 31, p3: 1379, p10: 1451, p50: 1670, p90: 1907, p97: 1984 },
+                    { week: 32, p3: 1530, p10: 1614, p50: 1861, p90: 2127, p97: 2209 },
+                    { week: 33, p3: 1687, p10: 1783, p50: 2060, p90: 2358, p97: 2445 },
+                    { week: 34, p3: 1847, p10: 1957, p50: 2268, p90: 2598, p97: 2690 },
+                    { week: 35, p3: 2008, p10: 2135, p50: 2481, p90: 2846, p97: 2943 },
+                    { week: 36, p3: 2169, p10: 2314, p50: 2698, p90: 3099, p97: 3201 },
+                    { week: 37, p3: 2329, p10: 2493, p50: 2917, p90: 3357, p97: 3462 },
+                    { week: 38, p3: 2484, p10: 2670, p50: 3136, p90: 3616, p97: 3725 },
+                    { week: 39, p3: 2633, p10: 2843, p50: 3354, p90: 3875, p97: 3988 },
+                    { week: 40, p3: 2775, p10: 3010, p50: 3567, p90: 4131, p97: 4247 }
+                ],
+                male: [
+                    { week: 14, p3: 75, p10: 79, p50: 92, p90: 105, p97: 109 },
+                    { week: 15, p3: 96, p10: 100, p50: 116, p90: 134, p97: 139 },
+                    { week: 16, p3: 121, p10: 127, p50: 146, p90: 169, p97: 175 },
+                    { week: 17, p3: 152, p10: 158, p50: 183, p90: 210, p97: 219 },
+                    { week: 18, p3: 188, p10: 196, p50: 226, p90: 260, p97: 271 },
+                    { week: 19, p3: 232, p10: 241, p50: 277, p90: 320, p97: 333 },
+                    { week: 20, p3: 282, p10: 293, p50: 337, p90: 389, p97: 405 },
+                    { week: 21, p3: 341, p10: 354, p50: 407, p90: 469, p97: 489 },
+                    { week: 22, p3: 408, p10: 424, p50: 487, p90: 561, p97: 586 },
+                    { week: 23, p3: 484, p10: 503, p50: 578, p90: 666, p97: 695 },
+                    { week: 24, p3: 570, p10: 592, p50: 681, p90: 785, p97: 818 },
+                    { week: 25, p3: 666, p10: 692, p50: 795, p90: 917, p97: 956 },
+                    { week: 26, p3: 772, p10: 803, p50: 923, p90: 1063, p97: 1109 },
+                    { week: 27, p3: 888, p10: 924, p50: 1063, p90: 1224, p97: 1276 },
+                    { week: 28, p3: 1014, p10: 1055, p50: 1215, p90: 1399, p97: 1458 },
+                    { week: 29, p3: 1149, p10: 1197, p50: 1379, p90: 1587, p97: 1654 },
+                    { week: 30, p3: 1293, p10: 1349, p50: 1555, p90: 1788, p97: 1863 },
+                    { week: 31, p3: 1445, p10: 1509, p50: 1741, p90: 2000, p97: 2085 },
+                    { week: 32, p3: 1605, p10: 1677, p50: 1937, p90: 2224, p97: 2319 },
+                    { week: 33, p3: 1770, p10: 1852, p50: 2140, p90: 2456, p97: 2562 },
+                    { week: 34, p3: 1941, p10: 2032, p50: 2350, p90: 2694, p97: 2814 },
+                    { week: 35, p3: 2114, p10: 2217, p50: 2565, p90: 2938, p97: 3072 },
+                    { week: 36, p3: 2290, p10: 2404, p50: 2783, p90: 3185, p97: 3334 },
+                    { week: 37, p3: 2466, p10: 2591, p50: 3001, p90: 3432, p97: 3598 },
+                    { week: 38, p3: 2641, p10: 2778, p50: 3218, p90: 3676, p97: 3863 },
+                    { week: 39, p3: 2813, p10: 2962, p50: 3432, p90: 3916, p97: 4125 },
+                    { week: 40, p3: 2981, p10: 3142, p50: 3639, p90: 4149, p97: 4383 }
+                ],
+                get data() {
+                    const sex = typeof selectedSex !== 'undefined' ? selectedSex : 'female';
+                    return this[sex];
+                }
+            },
+            hc: {
+                label: 'Head Circumference (mm)',
+                unit: 'mm',
+                data: [
+                    { week: 14, p3: 86, p10: 91, p50: 100, p90: 107, p97: 112 },
+                    { week: 15, p3: 97, p10: 102, p50: 111, p90: 119, p97: 124 },
+                    { week: 16, p3: 108, p10: 114, p50: 123, p90: 132, p97: 137 },
+                    { week: 17, p3: 120, p10: 126, p50: 135, p90: 144, p97: 149 },
+                    { week: 18, p3: 132, p10: 138, p50: 148, p90: 157, p97: 162 },
+                    { week: 19, p3: 145, p10: 150, p50: 161, p90: 170, p97: 175 },
+                    { week: 20, p3: 157, p10: 163, p50: 173, p90: 183, p97: 188 },
+                    { week: 21, p3: 169, p10: 175, p50: 186, p90: 196, p97: 201 },
+                    { week: 22, p3: 181, p10: 187, p50: 198, p90: 209, p97: 214 },
+                    { week: 23, p3: 193, p10: 199, p50: 210, p90: 221, p97: 227 },
+                    { week: 24, p3: 204, p10: 211, p50: 222, p90: 233, p97: 239 },
+                    { week: 25, p3: 215, p10: 222, p50: 233, p90: 245, p97: 251 },
+                    { week: 26, p3: 225, p10: 232, p50: 244, p90: 256, p97: 262 },
+                    { week: 27, p3: 234, p10: 242, p50: 254, p90: 267, p97: 273 },
+                    { week: 28, p3: 243, p10: 251, p50: 264, p90: 277, p97: 283 },
+                    { week: 29, p3: 251, p10: 260, p50: 273, p90: 286, p97: 293 },
+                    { week: 30, p3: 259, p10: 268, p50: 281, p90: 295, p97: 302 },
+                    { week: 31, p3: 266, p10: 275, p50: 289, p90: 303, p97: 311 },
+                    { week: 32, p3: 273, p10: 282, p50: 296, p90: 311, p97: 318 },
+                    { week: 33, p3: 279, p10: 289, p50: 303, p90: 318, p97: 326 },
+                    { week: 34, p3: 285, p10: 295, p50: 309, p90: 324, p97: 332 },
+                    { week: 35, p3: 291, p10: 300, p50: 315, p90: 330, p97: 338 },
+                    { week: 36, p3: 296, p10: 306, p50: 321, p90: 336, p97: 344 },
+                    { week: 37, p3: 302, p10: 311, p50: 326, p90: 341, p97: 349 },
+                    { week: 38, p3: 307, p10: 315, p50: 332, p90: 347, p97: 354 },
+                    { week: 39, p3: 313, p10: 320, p50: 337, p90: 352, p97: 359 },
+                    { week: 40, p3: 319, p10: 325, p50: 342, p90: 357, p97: 363 }
+                ]
+            },
+            bpd: {
+                label: 'Biparietal Diameter (mm)',
+                unit: 'mm',
+                data: [
+                    { week: 14, p3: 23, p10: 24, p50: 27, p90: 29, p97: 31 },
+                    { week: 15, p3: 26, p10: 27, p50: 30, p90: 32, p97: 34 },
+                    { week: 16, p3: 29, p10: 30, p50: 33, p90: 36, p97: 38 },
+                    { week: 17, p3: 32, p10: 33, p50: 36, p90: 39, p97: 41 },
+                    { week: 18, p3: 35, p10: 37, p50: 40, p90: 43, p97: 45 },
+                    { week: 19, p3: 38, p10: 40, p50: 43, p90: 46, p97: 48 },
+                    { week: 20, p3: 41, p10: 43, p50: 47, p90: 50, p97: 52 },
+                    { week: 21, p3: 44, p10: 46, p50: 50, p90: 53, p97: 55 },
+                    { week: 22, p3: 47, p10: 50, p50: 53, p90: 57, p97: 59 },
+                    { week: 23, p3: 50, p10: 53, p50: 57, p90: 60, p97: 62 },
+                    { week: 24, p3: 53, p10: 56, p50: 60, p90: 64, p97: 66 },
+                    { week: 25, p3: 56, p10: 59, p50: 63, p90: 67, p97: 69 },
+                    { week: 26, p3: 59, p10: 62, p50: 66, p90: 70, p97: 72 },
+                    { week: 27, p3: 62, p10: 65, p50: 69, p90: 73, p97: 75 },
+                    { week: 28, p3: 64, p10: 67, p50: 72, p90: 76, p97: 78 },
+                    { week: 29, p3: 67, p10: 70, p50: 74, p90: 78, p97: 81 },
+                    { week: 30, p3: 69, p10: 72, p50: 77, p90: 81, p97: 83 },
+                    { week: 31, p3: 71, p10: 74, p50: 79, p90: 83, p97: 86 },
+                    { week: 32, p3: 73, p10: 76, p50: 81, p90: 86, p97: 88 },
+                    { week: 33, p3: 75, p10: 78, p50: 83, p90: 88, p97: 90 },
+                    { week: 34, p3: 77, p10: 80, p50: 85, p90: 90, p97: 92 },
+                    { week: 35, p3: 79, p10: 82, p50: 87, p90: 92, p97: 94 },
+                    { week: 36, p3: 80, p10: 84, p50: 89, p90: 93, p97: 96 },
+                    { week: 37, p3: 82, p10: 85, p50: 90, p90: 95, p97: 97 },
+                    { week: 38, p3: 84, p10: 87, p50: 92, p90: 97, p97: 99 },
+                    { week: 39, p3: 85, p10: 89, p50: 94, p90: 99, p97: 101 },
+                    { week: 40, p3: 87, p10: 90, p50: 96, p90: 100, p97: 102 }
+                ]
+            },
+            ac: {
+                label: 'Abdominal Circumference (mm)',
+                unit: 'mm',
+                data: [
+                    { week: 14, p3: 69, p10: 73, p50: 81, p90: 89, p97: 95 },
+                    { week: 15, p3: 79, p10: 83, p50: 92, p90: 100, p97: 106 },
+                    { week: 16, p3: 89, p10: 93, p50: 103, p90: 112, p97: 118 },
+                    { week: 17, p3: 99, p10: 104, p50: 114, p90: 124, p97: 130 },
+                    { week: 18, p3: 110, p10: 116, p50: 126, p90: 136, p97: 142 },
+                    { week: 19, p3: 121, p10: 127, p50: 138, p90: 148, p97: 155 },
+                    { week: 20, p3: 132, p10: 139, p50: 150, p90: 161, p97: 167 },
+                    { week: 21, p3: 143, p10: 150, p50: 162, p90: 173, p97: 180 },
+                    { week: 22, p3: 154, p10: 162, p50: 173, p90: 186, p97: 193 },
+                    { week: 23, p3: 165, p10: 173, p50: 185, p90: 198, p97: 205 },
+                    { week: 24, p3: 176, p10: 184, p50: 197, p90: 210, p97: 217 },
+                    { week: 25, p3: 186, p10: 195, p50: 208, p90: 222, p97: 229 },
+                    { week: 26, p3: 196, p10: 205, p50: 219, p90: 233, p97: 241 },
+                    { week: 27, p3: 206, p10: 215, p50: 230, p90: 245, p97: 253 },
+                    { week: 28, p3: 215, p10: 225, p50: 240, p90: 256, p97: 264 },
+                    { week: 29, p3: 224, p10: 234, p50: 250, p90: 266, p97: 276 },
+                    { week: 30, p3: 233, p10: 243, p50: 260, p90: 277, p97: 287 },
+                    { week: 31, p3: 241, p10: 252, p50: 269, p90: 287, p97: 298 },
+                    { week: 32, p3: 249, p10: 260, p50: 279, p90: 298, p97: 308 },
+                    { week: 33, p3: 257, p10: 269, p50: 288, p90: 308, p97: 319 },
+                    { week: 34, p3: 265, p10: 277, p50: 298, p90: 318, p97: 330 },
+                    { week: 35, p3: 273, p10: 286, p50: 307, p90: 329, p97: 342 },
+                    { week: 36, p3: 282, p10: 294, p50: 317, p90: 340, p97: 353 },
+                    { week: 37, p3: 290, p10: 304, p50: 328, p90: 352, p97: 365 },
+                    { week: 38, p3: 299, p10: 313, p50: 338, p90: 364, p97: 378 },
+                    { week: 39, p3: 309, p10: 324, p50: 350, p90: 377, p97: 392 },
+                    { week: 40, p3: 319, p10: 335, p50: 363, p90: 391, p97: 406 }
+                ]
+            },
+            fl: {
+                label: 'Femur Length (mm)',
+                unit: 'mm',
+                data: [
+                    { week: 14, p3: 10, p10: 11, p50: 13, p90: 15, p97: 17 },
+                    { week: 15, p3: 12, p10: 14, p50: 16, p90: 18, p97: 20 },
+                    { week: 16, p3: 15, p10: 17, p50: 19, p90: 22, p97: 23 },
+                    { week: 17, p3: 19, p10: 20, p50: 22, p90: 25, p97: 26 },
+                    { week: 18, p3: 22, p10: 23, p50: 26, p90: 28, p97: 30 },
+                    { week: 19, p3: 25, p10: 26, p50: 29, p90: 31, p97: 33 },
+                    { week: 20, p3: 28, p10: 30, p50: 32, p90: 35, p97: 36 },
+                    { week: 21, p3: 31, p10: 33, p50: 35, p90: 38, p97: 39 },
+                    { week: 22, p3: 34, p10: 35, p50: 38, p90: 40, p97: 42 },
+                    { week: 23, p3: 36, p10: 38, p50: 41, p90: 43, p97: 45 },
+                    { week: 24, p3: 39, p10: 41, p50: 43, p90: 46, p97: 47 },
+                    { week: 25, p3: 41, p10: 43, p50: 46, p90: 48, p97: 50 },
+                    { week: 26, p3: 43, p10: 45, p50: 48, p90: 51, p97: 52 },
+                    { week: 27, p3: 46, p10: 47, p50: 50, p90: 53, p97: 55 },
+                    { week: 28, p3: 48, p10: 49, p50: 52, p90: 55, p97: 57 },
+                    { week: 29, p3: 50, p10: 51, p50: 54, p90: 57, p97: 59 },
+                    { week: 30, p3: 51, p10: 53, p50: 56, p90: 60, p97: 61 },
+                    { week: 31, p3: 53, p10: 55, p50: 59, p90: 62, p97: 64 },
+                    { week: 32, p3: 55, p10: 57, p50: 61, p90: 64, p97: 66 },
+                    { week: 33, p3: 57, p10: 60, p50: 63, p90: 66, p97: 68 },
+                    { week: 34, p3: 59, p10: 61, p50: 65, p90: 68, p97: 70 },
+                    { week: 35, p3: 61, p10: 63, p50: 67, p90: 70, p97: 73 },
+                    { week: 36, p3: 63, p10: 65, p50: 69, p90: 72, p97: 75 },
+                    { week: 37, p3: 65, p10: 67, p50: 70, p90: 74, p97: 76 },
+                    { week: 38, p3: 66, p10: 68, p50: 72, p90: 75, p97: 78 },
+                    { week: 39, p3: 67, p10: 69, p50: 73, p90: 76, p97: 79 },
+                    { week: 40, p3: 68, p10: 69, p50: 73, p90: 77, p97: 79 }
+                ]
+            }
+        };
+
+        // ============================================================
+        // STATE
+        // ============================================================
+        let patientData = [];
+        let currentMetric = 'efw';
+        let selectedSex = 'female';
+
+        window.changeSex = function(sex) {
+            selectedSex = sex;
+            // If currently viewing EFW, refresh the chart with new sex data
+            if (currentMetric === 'efw') {
+                switchMetric('efw');
+            }
+        };
+
+        // ============================================================
+        // CHART INITIALIZATION
+        // ============================================================
+        function buildPercentileDatasets(metric) {
+            const ref = referenceDataSets[metric].data;
+            const p3  = ref.map(d => ({ x: d.week, y: d.p3 }));
+            const p10 = ref.map(d => ({ x: d.week, y: d.p10 }));
+            const p50 = ref.map(d => ({ x: d.week, y: d.p50 }));
+            const p90 = ref.map(d => ({ x: d.week, y: d.p90 }));
+            const p97 = ref.map(d => ({ x: d.week, y: d.p97 }));
+
+            return [
+                {
+                    label: '97th',
+                    data: p97,
+                    borderColor: '#d1d5db',
+                    borderDash: [3, 3],
+                    borderWidth: 1,
+                    showLine: true,
+                    pointRadius: 0,
+                    fill: false,
+                    tension: 0.4
+                },
+                {
+                    label: '90th',
+                    data: p90,
+                    borderColor: '#9ca3af',
+                    borderDash: [5, 5],
+                    borderWidth: 1.5,
+                    showLine: true,
+                    pointRadius: 0,
+                    fill: false,
+                    tension: 0.4
+                },
+                {
+                    label: '50th',
+                    data: p50,
+                    borderColor: '#10b981',
+                    borderWidth: 2,
+                    showLine: true,
+                    pointRadius: 0,
+                    fill: false,
+                    tension: 0.4
+                },
+                {
+                    label: '10th',
+                    data: p10,
+                    borderColor: '#9ca3af',
+                    borderDash: [5, 5],
+                    borderWidth: 1.5,
+                    showLine: true,
+                    pointRadius: 0,
+                    fill: false,
+                    tension: 0.4
+                },
+                {
+                    label: '3rd',
+                    data: p3,
+                    borderColor: '#d1d5db',
+                    borderDash: [3, 3],
+                    borderWidth: 1,
+                    showLine: true,
+                    pointRadius: 0,
+                    fill: false,
+                    tension: 0.4
+                },
+                {
+                    label: 'Patient Data',
+                    data: [],
+                    borderColor: '#2563eb',
+                    backgroundColor: '#2563eb',
+                    showLine: true,
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0
+                }
+            ];
+        }
+
+        function getYAxisConfig(metric) {
+            const configs = {
+                efw: { min: 0, max: 4500, label: 'Estimated Fetal Weight (g)' },
+                hc:  { min: 60, max: 400, label: 'Head Circumference (mm)' },
+                bpd: { min: 15, max: 110, label: 'Biparietal Diameter (mm)' },
+                ac:  { min: 50, max: 430, label: 'Abdominal Circumference (mm)' },
+                fl:  { min: 5, max: 85, label: 'Femur Length (mm)' }
+            };
+            return configs[metric];
+        }
+
+        const ctx = document.getElementById('growthChart').getContext('2d');
+        const growthChart = new Chart(ctx, {
+            type: 'scatter',
+            data: {
+                datasets: buildPercentileDatasets('efw')
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        type: 'linear',
+                        title: { display: true, text: 'Gestational Age (Weeks)', font: { size: 13, weight: 'bold' } },
+                        min: 14,
+                        max: 40,
+                        ticks: { stepSize: 2 }
+                    },
+                    y: {
+                        title: { display: true, text: getYAxisConfig('efw').label, font: { size: 13, weight: 'bold' } },
+                        min: getYAxisConfig('efw').min,
+                        max: getYAxisConfig('efw').max
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 16,
+                            font: { size: 11 }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) { label += ': '; }
+                                if (context.parsed.y !== null) {
+                                    const unit = referenceDataSets[currentMetric].unit;
+                                    if (context.dataset.label === 'Patient Data') {
+                                        const pt = patientData.find(p => p.decimalAge === context.parsed.x);
+                                        const ageText = pt ? `${pt.weeks}w ${pt.days}d` : `${context.parsed.x.toFixed(1)}w`;
+                                        label += `${context.parsed.y}${unit} at ${ageText}`;
+                                    } else {
+                                        label += `${context.parsed.y}${unit}`;
+                                    }
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // ============================================================
+        // SWITCH METRIC (TAB)
+        // ============================================================
+        window.switchMetric = function(metric) {
+            currentMetric = metric;
+
+            // Update tab styles
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.metric === metric);
+            });
+
+            // Rebuild chart datasets
+            const newDatasets = buildPercentileDatasets(metric);
+            
+            // Populate patient data for this metric
+            const patientChartData = getPatientChartData(metric);
+            newDatasets[5].data = patientChartData;
+
+            growthChart.data.datasets = newDatasets;
+
+            // Update Y axis
+            const yConfig = getYAxisConfig(metric);
+            growthChart.options.scales.y.min = yConfig.min;
+            growthChart.options.scales.y.max = yConfig.max;
+            growthChart.options.scales.y.title.text = yConfig.label;
+
+            growthChart.update();
+        };
+
+        function getPatientChartData(metric) {
+            const fieldMap = { efw: 'weight', hc: 'hc', bpd: 'bpd', ac: 'ac', fl: 'fl' };
+            const field = fieldMap[metric];
+            return patientData
+                .filter(d => d[field] !== null && d[field] !== undefined && d[field] !== '')
+                .map(d => ({ x: d.decimalAge, y: parseFloat(d[field]) }));
+        }
+
+        // ============================================================
+        // FORM SUBMISSION
+        // ============================================================
+        document.getElementById('dataForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const weeks  = parseInt(document.getElementById('weeks').value);
+            const days   = parseInt(document.getElementById('days').value);
+            const hc     = document.getElementById('hc').value ? parseFloat(document.getElementById('hc').value) : null;
+            const bpd    = document.getElementById('bpd').value ? parseFloat(document.getElementById('bpd').value) : null;
+            const ac     = document.getElementById('ac').value ? parseFloat(document.getElementById('ac').value) : null;
+            const fl     = document.getElementById('fl').value ? parseFloat(document.getElementById('fl').value) : null;
+            const weight = document.getElementById('weight').value ? parseFloat(document.getElementById('weight').value) : null;
+
+            // At least one measurement must be provided
+            if (hc === null && bpd === null && ac === null && fl === null && weight === null) {
+                alert('Please enter at least one measurement.');
+                return;
+            }
+
+            const decimalAge = +(weeks + (days / 7)).toFixed(2);
+
+            patientData.push({
+                id: Date.now(),
+                weeks, days, decimalAge,
+                hc, bpd, ac, fl, weight
+            });
+
+            patientData.sort((a, b) => a.decimalAge - b.decimalAge);
+
+            updateTable();
+            updateChart();
+
+            // Reset form
+            this.reset();
+            document.getElementById('days').value = 0;
+        });
+
+        // ============================================================
+        // UPDATE TABLE
+        // ============================================================
+        function updateTable() {
+            const tbody = document.getElementById('dataTableBody');
+            const emptyState = document.getElementById('emptyState');
+
+            tbody.innerHTML = '';
+
+            if (patientData.length === 0) {
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+
+            patientData.forEach(data => {
+                const tr = document.createElement('tr');
+                tr.className = 'bg-white border-b hover:bg-gray-50';
+                const fmt = (v) => v !== null && v !== undefined ? v : '—';
+                tr.innerHTML = `
+                    <td class="px-2 py-2 font-medium text-gray-900 whitespace-nowrap">${data.weeks}w${data.days}d</td>
+                    <td class="px-2 py-2">${fmt(data.hc)}</td>
+                    <td class="px-2 py-2">${fmt(data.bpd)}</td>
+                    <td class="px-2 py-2">${fmt(data.ac)}</td>
+                    <td class="px-2 py-2">${fmt(data.fl)}</td>
+                    <td class="px-2 py-2">${fmt(data.weight)}</td>
+                    <td class="px-2 py-2">
+                        <button onclick="removeData(${data.id})" class="text-red-500 hover:text-red-700 font-bold text-sm" title="Remove">✕</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ============================================================
+        // UPDATE CHART
+        // ============================================================
+        function updateChart() {
+            const patientChartData = getPatientChartData(currentMetric);
+            growthChart.data.datasets[5].data = patientChartData;
+            growthChart.update();
+        }
+
+        // ============================================================
+        // REMOVE DATA
+        // ============================================================
+        window.removeData = function(id) {
+            patientData = patientData.filter(d => d.id !== id);
+            updateTable();
+            updateChart();
+        };
+
+        // ============================================================
+        // PDF REPORT GENERATION
+        // ============================================================
+        window.generatePDF = async function() {
+            if (patientData.length === 0) {
+                alert('Please add at least one measurement before generating a report.');
+                return;
+            }
+
+            const btn = document.getElementById('downloadPdfBtn');
+            btn.disabled = true;
+            btn.innerHTML = `
+                <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                Generating PDF...
+            `;
+
+            try {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF('portrait', 'mm', 'a4');
+                const pageWidth = doc.internal.pageSize.getWidth();
+                const margin = 15;
+                const contentWidth = pageWidth - margin * 2;
+                let yPos = margin;
+
+                // ---- HEADER ----
+                doc.setFillColor(37, 99, 235); // Blue header
+                doc.rect(0, 0, pageWidth, 28, 'F');
+                doc.setTextColor(255, 255, 255);
+                doc.setFontSize(18);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Fetal Growth Report', margin, 12);
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'normal');
+                const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+                doc.text('Generated: ' + dateStr, margin, 20);
+                doc.text('Serial Growth Charting — WHO Percentile Reference', margin, 25);
+
+                yPos = 36;
+
+                // ---- CURRENT CHART TITLE ----
+                const metricLabels = {
+                    efw: 'Estimated Fetal Weight',
+                    hc: 'Head Circumference',
+                    bpd: 'Biparietal Diameter',
+                    ac: 'Abdominal Circumference',
+                    fl: 'Femur Length'
+                };
+
+                doc.setTextColor(30, 30, 30);
+                doc.setFontSize(13);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Growth Chart — ' + metricLabels[currentMetric], margin, yPos);
+                yPos += 5;
+
+                // ---- CHART IMAGE ----
+                const canvas = document.getElementById('growthChart');
+                const chartImage = canvas.toDataURL('image/png', 1.0);
+                const chartAspect = canvas.height / canvas.width;
+                const chartImgWidth = contentWidth;
+                const chartImgHeight = chartImgWidth * chartAspect;
+                doc.addImage(chartImage, 'PNG', margin, yPos, chartImgWidth, Math.min(chartImgHeight, 100));
+                yPos += Math.min(chartImgHeight, 100) + 8;
+
+                // ---- DATA TABLE ----
+                doc.setFontSize(13);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(30, 30, 30);
+                doc.text('Patient Measurement Data', margin, yPos);
+                yPos += 6;
+
+                // Table header
+                const colWidths = [22, 25, 25, 25, 25, 25, 33];
+                const headers = ['GA', 'HC (mm)', 'BPD (mm)', 'AC (mm)', 'FL (mm)', 'EFW (g)', 'Percentile'];
+                
+                doc.setFillColor(243, 244, 246);
+                doc.rect(margin, yPos - 4, contentWidth, 7, 'F');
+                doc.setFontSize(7.5);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(55, 65, 81);
+                
+                let xPos = margin + 1;
+                headers.forEach((h, i) => {
+                    doc.text(h, xPos, yPos);
+                    xPos += colWidths[i];
+                });
+                yPos += 5;
+
+                // Table rows
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(7.5);
+
+                const fmt = (v) => v !== null && v !== undefined ? String(v) : '—';
+
+                // Helper: find approximate percentile for a value at a given decimal age
+                function getApproxPercentile(metric, decimalAge, value) {
+                    if (value === null || value === undefined) return '—';
+                    const ref = referenceDataSets[metric].data;
+                    // Find surrounding weeks
+                    let lower = ref[0], upper = ref[ref.length - 1];
+                    for (let i = 0; i < ref.length - 1; i++) {
+                        if (decimalAge >= ref[i].week && decimalAge <= ref[i + 1].week) {
+                            lower = ref[i];
+                            upper = ref[i + 1];
+                            break;
+                        }
+                    }
+                    // Linear interpolation
+                    const t = upper.week === lower.week ? 0 : (decimalAge - lower.week) / (upper.week - lower.week);
+                    const interp = (key) => lower[key] + t * (upper[key] - lower[key]);
+                    const p3 = interp('p3'), p10 = interp('p10'), p50 = interp('p50'), p90 = interp('p90'), p97 = interp('p97');
+
+                    if (value <= p3) return '<3rd';
+                    if (value <= p10) return '3rd–10th';
+                    if (value <= p50) return '10th–50th';
+                    if (value <= p90) return '50th–90th';
+                    if (value <= p97) return '90th–97th';
+                    return '>97th';
+                }
+
+                const fieldForMetric = { efw: 'weight', hc: 'hc', bpd: 'bpd', ac: 'ac', fl: 'fl' };
+                const currentField = fieldForMetric[currentMetric];
+
+                patientData.forEach((data, idx) => {
+                    // Alternate row color
+                    if (idx % 2 === 0) {
+                        doc.setFillColor(249, 250, 251);
+                        doc.rect(margin, yPos - 3.5, contentWidth, 6, 'F');
+                    }
+
+                    doc.setTextColor(30, 30, 30);
+                    xPos = margin + 1;
+                    const row = [
+                        `${data.weeks}w ${data.days}d`,
+                        fmt(data.hc),
+                        fmt(data.bpd),
+                        fmt(data.ac),
+                        fmt(data.fl),
+                        fmt(data.weight),
+                        getApproxPercentile(currentMetric, data.decimalAge, data[currentField])
+                    ];
+                    row.forEach((cell, i) => {
+                        doc.text(cell, xPos, yPos);
+                        xPos += colWidths[i];
+                    });
+                    yPos += 6;
+
+                    // Page break if needed
+                    if (yPos > 270) {
+                        doc.addPage();
+                        yPos = margin;
+                    }
+                });
+
+                yPos += 4;
+
+                // ---- ADDITIONAL CHARTS (all other metrics) ----
+                const otherMetrics = Object.keys(metricLabels).filter(m => m !== currentMetric);
+                
+                for (const metric of otherMetrics) {
+                    // Check if patient has data for this metric
+                    const field = fieldForMetric[metric];
+                    const hasData = patientData.some(d => d[field] !== null && d[field] !== undefined);
+                    if (!hasData) continue;
+
+                    // Switch chart to this metric, capture, then switch back
+                    switchMetric(metric);
+                    // Wait for chart animation
+                    await new Promise(r => setTimeout(r, 400));
+
+                    if (yPos > 170) {
+                        doc.addPage();
+                        yPos = margin;
+                    }
+
+                    doc.setFontSize(11);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setTextColor(30, 30, 30);
+                    doc.text('Growth Chart — ' + metricLabels[metric], margin, yPos);
+                    yPos += 5;
+
+                    const img = canvas.toDataURL('image/png', 1.0);
+                    doc.addImage(img, 'PNG', margin, yPos, chartImgWidth, Math.min(chartImgHeight, 90));
+                    yPos += Math.min(chartImgHeight, 90) + 8;
+                }
+
+                // Switch back to original metric
+                switchMetric(currentMetric);
+
+                // ---- FOOTER ----
+                const totalPages = doc.internal.getNumberOfPages();
+                for (let i = 1; i <= totalPages; i++) {
+                    doc.setPage(i);
+                    doc.setFontSize(7);
+                    doc.setFont('helvetica', 'italic');
+                    doc.setTextColor(150, 150, 150);
+                    doc.text(
+                        'Fetal Growth Tracker — For clinical documentation purposes. Reference: WHO/Hadlock approximate percentiles.',
+                        margin,
+                        doc.internal.pageSize.getHeight() - 8
+                    );
+                    doc.text(
+                        `Page ${i} of ${totalPages}`,
+                        pageWidth - margin - 20,
+                        doc.internal.pageSize.getHeight() - 8
+                    );
+                }
+
+                // ---- SAVE ----
+                doc.save('fetal-growth-report.pdf');
+
+            } catch (err) {
+                console.error('PDF generation error:', err);
+                alert('An error occurred while generating the PDF. Please try again.');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Download PDF Report
+                `;
+            }
+        };
+    </script>
+</body>
+</html>
